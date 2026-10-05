@@ -1,57 +1,91 @@
-# Project Requirements
+# Project: Friends Chat (private, under 100 users, free)
 
-> Fill in every section. Write short, plain sentences. Delete the hints in (brackets) when done.
-> The AI builds ONLY what is written here. If it is not written, it does not get built.
+## Stack
+- React + Vite, mobile-first, deploy on Vercel
+- Firebase Spark ONLY: Auth (email/password) + Firestore
+- Do NOT use Firebase Storage, Cloud Functions, or any paid service
+- All Firebase config from env vars: VITE_FIREBASE_API_KEY,
+  VITE_FIREBASE_AUTH_DOMAIN, VITE_FIREBASE_PROJECT_ID,
+  VITE_FIREBASE_APP_ID. Never hardcode. Add .env.example.
 
-## 1. What is this?
-(One sentence. Example: "A website where league players see match results and standings.")
+## Auth
+- Sign up/login with username + password
+- Convert username to email `<username>@chatapp.local` for Firebase Auth
+- Username: lowercase letters/numbers/underscore, 3-20 chars, unique
+- Reserve it in `usernames/{username}` -> {uid}, in a transaction
+- Show clear errors (taken, wrong password, weak password)
 
-## 2. Who uses it?
-- Who: (e.g. players, admins)
-- How many people: (e.g. about 20)
-- Devices: (mostly phones? which browser?)
+## Data model (Firestore)
+- users/{uid}: username, displayName, photoB64 (256px JPEG), createdAt
+- usernames/{username}: uid
+- friendRequests/{fromUid_toUid}: from, to, status
+  (pending|accepted|declined), createdAt
+- chats/{chatId}: members [uidA, uidB], chatId = sorted uids joined by "_"
+- chats/{chatId}/messages/{id}: senderId, text, imageB64 (optional),
+  createdAt
 
-## 3. Features
-(One block per feature. The "Done when" line is the test. Make it something you can check.)
+## Screens
+1. Login/Signup
+2. Profile setup (display name + dp upload, crop to square, resize 256px)
+3. Home: friends list + Invites tab (badge count)
+4. Add Friend bar: type/paste username, send invite; block self-invite,
+   duplicates, unknown usernames
+5. Invites: Accept / Decline
+6. Chat: real-time messages, send text, send image, auto-scroll,
+   show sender dp + time
 
-### Feature 1: (name)
-- What it does:
-- Done when: (e.g. "I open the page on my phone and see the table sorted by points")
+## Images (no video anywhere)
+- Chat images: resize in browser to max 800px, JPEG quality 0.7,
+  reject if over 300 KB after compression, store as base64 in message
+- Only image/jpeg, image/png, image/webp allowed
+- Do not add any video upload or video UI
 
-### Feature 2: (name)
-- What it does:
-- Done when:
+## Free-tier protection
+- Load only latest 50 messages per chat (query limit + "load older")
+- Use onSnapshot only on the open chat and the friends/invites lists
+- Unsubscribe listeners on unmount
 
-## 4. NOT included (out of scope)
-(Things the AI must not build. Example: "No payments. No chat. No user photos.")
--
+## Security (write firestore.rules file)
+- Users edit only their own users/{uid}; any signed-in user can read
+  users (needed for search/friends)
+- usernames: create only if not existing, only for own uid
+- friendRequests: only sender can create (status pending); only
+  recipient can set accepted/declined
+- chats and messages: read/write only if request.auth.uid is in members;
+  chat creatable only when an accepted friendRequest exists between them
+- Message senderId must equal request.auth.uid; text max 2000 chars
+- No client can delete other people's data
+- No secrets in the repo
 
-## 5. Data and privacy
-- What information is stored: (e.g. names, scores)
-- Any private or personal information: (yes/no, what)
-- Who can READ what:
-- Who can CHANGE what:
-- Who is the admin:
+## Design: dark glassmorphism, must not lag on mid-range phones
 
-## 6. Look and feel
-- Style: (e.g. dark, glass-like cards)
-- Must be mobile-first: yes
-- Colours / logo:
+Look
+- Dark background (#0b0d14 area) with 2-3 soft gradient color blobs
+  (purple/blue) as a STATIC fixed background layer, not animated
+- Glass panels: rgba(255,255,255,0.06) background, 1px border
+  rgba(255,255,255,0.12), rounded corners 16-20px, soft shadow
+- Light text, accent color for buttons and sent messages
+- Bottom navigation: Chats, Invites, Profile
 
-## 7. Speed targets
-- Page loads in under 3 seconds on an average phone
-- Lighthouse mobile score of 90 or higher (performance, accessibility, best practices)
+Performance rules (strict)
+- backdrop-filter blur ONLY on: top header, bottom nav, modals/popups.
+  Max blur 10px. Max 3 blurred elements on screen at once.
+- NEVER use backdrop-filter on message bubbles, list rows, or anything
+  inside a scrolling area. Bubbles and rows use plain semi-transparent
+  backgrounds plus a border to look like glass.
+- Never put blur over scrolling content with large images
+- Animate only transform and opacity (no animating blur, width, height,
+  or box-shadow). Keep animations under 200ms.
+- Add `will-change: transform` only on the few elements that animate
+- Fallback: if backdrop-filter is unsupported, use a solid
+  rgba(20,22,32,0.9) background
+- Respect prefers-reduced-motion
+- Lazy-load chat images, fixed width/height to avoid layout shift
+- Memoize message components; keep list render light (50 messages max)
+- No heavy UI libraries or animation libraries; plain CSS + React
+- Test target: smooth 60fps scrolling in the chat on a low-end Android
 
-## 8. Approved tools
-(Only these may be used. Anything new needs my approval.)
-- Hosting:
-- Database / login:
-- Framework:
-
-## 9. Definition of done
-The project is done only when ALL are true:
-- Every feature's "Done when" test passes
-- All automatic checks are green (build, tests, lint, secrets scan, security scan, dependency audit)
-- No critical or high security findings
-- I tested it on my phone and it feels smooth
-- Only the data listed in section 5 is stored
+## Done means
+- npm run build passes, no lint errors, all CI checks green
+- README with steps to add env vars in Vercel and paste firestore.rules
+  into the Firebase console
