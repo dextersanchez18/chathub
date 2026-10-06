@@ -13,22 +13,27 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [profileExists, setProfileExists] = useState(false);
+  const [signUpError, setSignUpError] = useState(''); // preserve error message across fast unmount/remount
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      if (currentUser) {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-          setProfileExists(userDoc.exists());
-        } catch (e) {
-          console.error("Error checking profile", e);
+      // Small delay to handle rapid rollback scenarios where we momentarily have a user then it gets deleted
+      // causing a unmount/remount of Login.
+      setTimeout(async () => {
+        setUser(currentUser);
+        if (currentUser) {
+          try {
+            const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+            setProfileExists(userDoc.exists());
+          } catch (e) {
+            console.error("Error checking profile", e);
+            setProfileExists(false);
+          }
+        } else {
           setProfileExists(false);
         }
-      } else {
-        setProfileExists(false);
-      }
-      setLoading(false);
+        setLoading(false);
+      }, 50);
     });
     return () => unsubscribe();
   }, []);
@@ -41,10 +46,19 @@ function App() {
     <BrowserRouter>
       <div className="bg-blobs"></div>
       <div className="app-container">
+        {signUpError && !user && (
+          <div style={{
+            position: 'absolute', top: '10px', left: '50%', transform: 'translateX(-50%)',
+            background: 'var(--danger)', color: 'white', padding: '10px 20px', borderRadius: '8px', zIndex: 100
+          }}>
+            {signUpError}
+            <button onClick={() => setSignUpError('')} style={{marginLeft: '10px', background: 'transparent', padding: '2px', fontSize: '12px'}}>X</button>
+          </div>
+        )}
         <Routes>
           {!user ? (
             <>
-              <Route path="/login" element={<Login />} />
+              <Route path="/login" element={<Login setSignUpError={setSignUpError} />} />
               <Route path="*" element={<Navigate to="/login" replace />} />
             </>
           ) : !profileExists ? (

@@ -1,5 +1,5 @@
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
-import { doc, runTransaction, getDoc } from "firebase/firestore";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, deleteUser } from "firebase/auth";
+import { doc, runTransaction } from "firebase/firestore";
 import { auth, db } from "../firebase";
 
 export const validateUsername = (username) => {
@@ -13,19 +13,14 @@ export const signUp = async (username, password) => {
   }
 
   const email = `${username}@chatapp.local`;
+  let user = null;
 
   try {
-    // We use a transaction to reserve the username
-    const usernameRef = doc(db, "usernames", username);
-
-    // First check if username exists to give a clear error
-    const usernameDoc = await getDoc(usernameRef);
-    if (usernameDoc.exists()) {
-      throw new Error("Username already taken.");
-    }
-
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
+    user = userCredential.user;
+
+    // We use a transaction to reserve the username, after the user is authenticated.
+    const usernameRef = doc(db, "usernames", username);
 
     await runTransaction(db, async (transaction) => {
       const uDoc = await transaction.get(usernameRef);
@@ -37,7 +32,17 @@ export const signUp = async (username, password) => {
 
     return user;
   } catch (error) {
-    if (error.code === 'auth/email-already-in-use') {
+    // Rollback: if the username was taken during transaction, or any other error occurred
+    // after user was created, we clean up the auth user.
+    if (user) {
+      try {
+        await deleteUser(user);
+      } catch (e) {
+        console.error("Failed to cleanup auth user after signup error", e);
+      }
+    }
+
+    if (error.message === "Username already taken." || error.code === 'auth/email-already-in-use') {
       throw new Error("Username already taken.");
     }
     if (error.code === 'auth/weak-password') {

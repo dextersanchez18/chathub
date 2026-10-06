@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { signUp, logIn } from '../utils/auth';
 
-const Login = () => {
+const Login = ({ setSignUpError }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -21,6 +21,9 @@ const Login = () => {
       }
     } catch (err) {
       setError(err.message);
+      if (!isLogin && setSignUpError) {
+          setSignUpError(err.message);
+      }
     } finally {
       setLoading(false);
     }
