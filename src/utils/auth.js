@@ -32,13 +32,18 @@ export const signUp = async (username, password) => {
 
     return user;
   } catch (error) {
-    console.error("SignUp Error Log:", error.message, error);
-    console.error("Firebase Config:", {
+    const firebaseConfig = {
       apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
       authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
       projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
       appId: import.meta.env.VITE_FIREBASE_APP_ID
-    });
+    };
+
+    console.error("SignUp Error Log:", error.message, error);
+    console.error("Firebase Config:", firebaseConfig);
+
+    // Also show it directly in an alert for mobile debugging without dev tools
+    alert(`SignUp Error: ${error.message}\n\nFirebase Config:\n${JSON.stringify(firebaseConfig, null, 2)}`);
 
     // Rollback: if the username was taken during transaction, or any other error occurred
     // after user was created, we clean up the auth user.
